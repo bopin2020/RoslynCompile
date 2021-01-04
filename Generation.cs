@@ -7,7 +7,9 @@ using System.Reflection;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Emit;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
+using SF = Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
 namespace FrameworkRoslynCompileMultiFiles
 {
@@ -21,7 +23,6 @@ namespace FrameworkRoslynCompileMultiFiles
             {
                 public class Sample
                 {
-                    static string bopin = ""Hi bopin"";
                     static void Main(string[] args)
                     {
                         MessageBox.Show(bopin);                                               
@@ -29,6 +30,13 @@ namespace FrameworkRoslynCompileMultiFiles
                 }
             }
             ");
+
+            var newresult = new ModifyClassDeclaration().Visit(tree.GetRoot());
+
+            var newtree = CSharpSyntaxTree.ParseText(newresult.ToFullString());
+
+            Console.WriteLine(newresult.ToFullString());
+
 
             string assemblyName = Path.GetRandomFileName();
 
@@ -45,7 +53,7 @@ namespace FrameworkRoslynCompileMultiFiles
 
             CSharpCompilation compilation = CSharpCompilation.Create(
                 assemblyName,
-                syntaxTrees: new[] { tree },
+                syntaxTrees: new[] { newtree },
                 references: references,
                 options: new CSharpCompilationOptions(OutputKind.WindowsApplication
                 ));
@@ -65,7 +73,7 @@ namespace FrameworkRoslynCompileMultiFiles
                     }
                 }
                 else
-                {  
+                {
                     ms.Seek(0, SeekOrigin.Begin);
                     Assembly assembly = Assembly.Load(ms.ToArray());
                     BinaryWriter b = new BinaryWriter(new FileStream(@"d:\desktop\success.exe", FileMode.Create));
@@ -73,6 +81,21 @@ namespace FrameworkRoslynCompileMultiFiles
                     b.Close();
                 }
             }
+        }
+    }
+
+    class ModifyClassDeclaration : CSharpSyntaxRewriter
+    {
+        public override SyntaxNode VisitClassDeclaration(ClassDeclarationSyntax node)
+        {
+            FieldDeclarationSyntax aField = SF.FieldDeclaration(
+            SF.VariableDeclaration(
+                SF.ParseTypeName(" string "),
+                SF.SeparatedList(new[] { SF.VariableDeclarator(SF.Identifier("bopin=\"Hi bopin\"")) })
+            ))
+            .AddModifiers(SF.Token(SyntaxKind.StaticKeyword));  //SyntaxKind.PublicKeyword),
+            node = node.AddMembers(aField);
+            return base.VisitClassDeclaration(node);
         }
     }
 }
